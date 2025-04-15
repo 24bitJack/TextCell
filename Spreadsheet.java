@@ -7,10 +7,13 @@ import java.util.Arrays;
 
 public class Spreadsheet implements Grid
 {
+	public ArrayList<SpreadsheetLocation> FormulaLocations;
 	public SpreadsheetLocation currentFormulaLocation;
 	public final EmptyCell empty = new EmptyCell();
 	private Cell[][] sheet;
 	public Spreadsheet() {
+		FormulaLocations =  new ArrayList<SpreadsheetLocation>();
+		currentFormulaLocation = null;
 		this.sheet = new Cell[getCols()][getRows()];
 		clearSheet();
 	}
@@ -39,31 +42,119 @@ public class Spreadsheet implements Grid
 	    return "";
 	}
 	
+	public boolean checkForRecursionInLoc(SpreadsheetLocation loc) {
+	    if (FormulaLocations == null) {
+	        FormulaLocations = new ArrayList<>();
+	    }
+	    
+	    if (FormulaLocations.contains(loc)) {
+	        return true; // Already visited
+	    }
+
+	    FormulaLocations.add(loc);
+	    return false;
+	}
+	
+	public void addLoctoFormulaLocation(SpreadsheetLocation loc) {
+		System.out.println(this.LocationToString(loc));
+		 if (FormulaLocations == null) {
+			 System.out.println("FormulaLocation is Null");
+			 FormulaLocations = new ArrayList<SpreadsheetLocation>();
+			 currentFormulaLocation = loc;
+			 System.out.println("formulalocation is no longer Null");
+			 System.out.println("contains Formulallocation: " + currentFormulaLocation.toString());
+			 FormulaLocations.add(currentFormulaLocation);
+		 } else {
+			 System.out.println("FormulaLocations In rotation: " + FormulaLocations.toString());
+			 FormulaLocations.add(loc);
+		 }
+	}
+	
+	
+	public boolean checkForRecursionInLoc(String str) {
+		if (str == null) {
+			return false;
+		}
+		if (str.isEmpty() || str.isBlank()) {
+			return false;
+		}
+		
+		str = str.toUpperCase();
+		SpreadsheetLocation currentTokenLocation;
+		if (containsCell(str)) {
+			if (isCell(str.trim())) {
+				currentTokenLocation = new SpreadsheetLocation(str.trim());
+				addLoctoFormulaLocation(currentTokenLocation);
+				if (checkForRecursionInLoc(currentTokenLocation)) {
+					return true;
+				} else {
+				}
+			}
+			String[] Components = SplitStringPlusClean(str.trim().replace("(","").replace(")",""));
+			for (String CurrentToken: Components) {
+				CurrentToken = CurrentToken.replace(" ", "").replace("-","");
+				if (isCell(CurrentToken)) {
+					currentTokenLocation = new SpreadsheetLocation(CurrentToken);
+					if (checkForRecursionInLoc(currentTokenLocation)) {
+						return true;
+					}
+					addLoctoFormulaLocation(currentTokenLocation);
+				}
+			}
+		}
+		return false;
+	}
+	
 	public String ProcessCell(String command, String CellLocStr) {
 		Location loc;
 		if(command.isBlank()) {
 			 loc = new SpreadsheetLocation(CellLocStr);
+			 Double retDouble;
+			
+			 if (getCell(loc) instanceof FormulaCell formulaCell) {
+				 retDouble = (formulaCell.getDoubleVal());
+				 if (Double.isNaN(retDouble)) {
+					 return "#ERROR";
+				 } else if (Double.isInfinite(retDouble)) {
+					 return "#ERROR";
+				 } else {
+					 if (!checkForRecursionInLoc((SpreadsheetLocation)loc)) {
+					 return Double.toString(retDouble);
+					 } else {
+						 return "0.0";
+					 }
+				 }
+			 } else if (getCell(loc) instanceof RealCell realcell) {
+				 retDouble = (realcell.getDoubleVal());
+				 if (Double.isNaN(retDouble)) {
+					 return "#ERROR";
+				 } else if (Double.isInfinite(retDouble)) {
+					 return "#ERROR";
+				 } else {
+					 return Double.toString(retDouble);
+				 }
+			 } else {
 				return getCell(loc).fullCellText();
+			 }
 		} else {
 			String[] commandComponents = command.split("=",2);
 			loc = new SpreadsheetLocation(commandComponents[0].trim());
-			System.out.println("componenet 1: " + commandComponents[0].trim());
 			setCell(loc, commandComponents[1].trim());
-			System.out.println("componenet 2: " + commandComponents[1].trim());
 			return getGridText();
 		}
 	}
 	
-	
 	public String ProcessCell(String command, SpreadsheetLocation loc) {
 		if(command.isBlank()) {
-				return getCell(loc).fullCellText();
+				if (getCell(loc) instanceof FormulaCell formulaCell) {
+					return Double.toString(formulaCell.getDoubleVal());
+				} else {
+					return getCell(loc).fullCellText();
+				}
 		} else {
 			String[] commandComponents = command.split("=",2);
 			loc = new SpreadsheetLocation(commandComponents[0].trim());
-			System.out.println("componenet 1: " + commandComponents[0].trim());
 			setCell(loc, commandComponents[1].trim());
-			System.out.println("componenet 2: " + commandComponents[1].trim());
 			return getGridText();
 		}
 	}
@@ -74,23 +165,24 @@ public class Spreadsheet implements Grid
 		Cell cell;
 		if (textToSet.contains("\"")) {cell = new TextCell(textToSet);}
 		else if (textToSet.contains(")") || textToSet.contains("+") || isCell(textToSet.toUpperCase())) {
-			cell = new FormulaCell(textToSet);
+			cell = new FormulaCell(textToSet,this);
+			double ans = 0.0;
 			currentFormulaLocation = (SpreadsheetLocation) loc;
-			Double ans = calcSingle(textToSet);
-			
-			if (ans != Double.POSITIVE_INFINITY) {
-				((FormulaCell) cell).setAnswer(ans);
-			} else {
-				((FormulaCell) cell).setAnswer(Double.POSITIVE_INFINITY);
+			if (cell instanceof RealCell realcell) {
+				 ans = realcell.getDoubleVal();
+			} else if (cell instanceof FormulaCell formualaCell) {
+				ans = formualaCell.getDoubleVal();
+			}
+			if (ans == Double.POSITIVE_INFINITY) {
+				setCell(loc, "");
 			}
 			
 			}
 		else if(!textToSet.trim().replace("-","").matches("[^0-9]")&&textToSet.contains("%")) {cell = new PercentCell(textToSet);}
 		else if (!textToSet.replace("-","").matches("[^0-9]")) {cell = new ValueCell(textToSet);}
 		
-		else {cell = new EmptyCell(); System.out.println("EmptyCell with " + textToSet);}
+		else {cell = new EmptyCell();}
 		sheet[loc.getCol()][loc.getRow()] = cell;
-		System.out.println(cell.getClass());
 	}
 	
  	public void clearCell(Location loc) {
@@ -231,9 +323,9 @@ public class Spreadsheet implements Grid
 	                grid += "|          "; 
 	            } else {
 	            	if (isFormula(sheet[j][i].fullCellText())) {
-	            		Double val = calcSingle(sheet[j][i].fullCellText());
-	            		grid += Double.toString(val).length() > 10 ? Double.toString(val).substring(0,10)
-	            											: Double.toString(val) + " ".repeat(10 - Double.toString(val).length());
+	            		double val = sheet[j][i] instanceof RealCell ? (((RealCell) sheet[j][i]).getDoubleVal()) : (((FormulaCell) sheet[j][i]).getDoubleVal());
+	            		grid += Double.toString(val).length() > 10 ? "|" +Double.toString(val).substring(0,10)
+	            											:"|" + Double.toString(val) + " ".repeat(10 - Double.toString(val).length());
 	            	} else {
 	                grid += "|" + sheet[j][i].abbreviatedCellText();
 	            	}
@@ -244,92 +336,6 @@ public class Spreadsheet implements Grid
 	    return grid;
 	}
 	
-	private String average(String beg, String end) {
-		if (beg.equalsIgnoreCase(end)) {
-			return ProcessCell("",end.toUpperCase());
-		}
-		if (beg.charAt(0) == end.charAt(0)) {
-			int difference = Integer.parseInt(end.substring(1)) - Integer.parseInt(beg.substring(1));
-			Double avg = 0.0;
-			SpreadsheetLocation loc;
-			for (int i = Integer.parseInt(beg.substring(1)); i < Integer.parseInt(end.substring(1)) + difference; i++)  {
-				loc = new SpreadsheetLocation(Character.toString(beg.charAt(0)) + i);
-				String ProcessedCell = ProcessCell("",loc);
-				if (ProcessedCell.matches("-?\\d+(\\.\\d+)?")) {
-					avg += Double.parseDouble(ProcessedCell);
-				}
-			}
-			return Double.toString(avg);
-		} else {
-			return "oh no";
-		}
-	}
-
-	public String Sumative(String beg, String end) {
-		int i = Integer.parseInt(beg.replaceAll("[^0-9.]", ""))-Integer.parseInt(end.replaceAll("[^0-9.]", ""));
-		return Double.toString(Double.parseDouble(average(beg,end))*i);
-	}
-	
-	public double calcSingle(String str) {
-		str = str.replaceAll("[()]","").replace(" ", "");
-		System.out.println("string after replacing:\t" + str);
-		if (str.toUpperCase().trim().startsWith("SUM")) {
-			str = str.trim().toUpperCase();
-			return Double.parseDouble(average(str.replace("AVG","").split("-")[0],str.split("-")[1]));
-		}
-		if (str.toUpperCase().trim().startsWith("SUM")) {
-			str = str.trim().toUpperCase();
-			return Double.parseDouble(Sumative(str.replace("SUM","").split("-")[0],str.split("-")[1]));
-		}
-		ArrayList<String> Components = new ArrayList<String>();
-		Components = addAll(SplitStringPlusClean(str));
-		double ReturnValue = 0.0
-				,CurrentDouble = Double.NaN;
-		String CurrentToken;
-		char Opperand;
-		for (int i = 0; i < Components.size()-1; i++) {
-			CurrentToken = Components.get(i);
-			System.out.print(i + ":" + CurrentToken);
-			if (isCell(CurrentToken) || containsCell(CurrentToken)) {
-			    String cellContent = processCommand(CurrentToken);
-			    if (cellContent.trim().startsWith("(")) {
-			        cellContent = cellContent.replaceAll("[()]", "").trim();
-			        double evaluated = calcSingle(cellContent);
-			        Components.set(i, String.valueOf(evaluated));
-			    } else {
-			        Components.set(i, cellContent.replaceAll("[()]", "").trim());
-			    }
-			}
-			if (!CurrentToken.isBlank()) {
-				if (CurrentToken.contains("*")) { //[a /^* b] --> [c]
-					Components.set(i,Double.toString(doubleSimpleCalculation(Components.get(i-1),Components.get(i+1) , '*')));
-					System.out.println("\n multiplied:\t" + Components.get(i-1) + "*"  + Components.get(i+1) + " to get:->"+ Components.get(i));
-					Components.remove(i+1);
-					Components.remove(i-1);
-					i--;
-				} else if (CurrentToken.contains("/")) { //[a /^* b] --> [c]
-					Components.set(i,Double.toString(doubleSimpleCalculation(Components.get(i-1),Components.get(i+1) , '/')));
-					System.out.println("\n divided:\t" + Components.get(i-1) + "/"  + Components.get(i+1) + " to get:->"+ Components.get(i));
-					Components.remove(i+1);
-					Components.remove(i-1);
-					i--;
-				}
-			} else {
-				Components.remove(i);
-				i--;
-			}
-		}
-		for (String currentToken: Components) {
-			if (!currentToken.isBlank())  {
-				if(currentToken.matches("-?\\d+(\\.\\d+)?")) {
-				ReturnValue += Double.parseDouble(currentToken);
-				}
-			}
-		}
-		currentFormulaLocation = new SpreadsheetLocation("Z202");
-		FormulaLocations = null;
-		return ReturnValue;
-		}
 	
 	public ArrayList<String> addAll(String[] StringStr) {
 		ArrayList<String> Components = new ArrayList<String>();
@@ -350,7 +356,6 @@ public class Spreadsheet implements Grid
 					.replace("/", "$/$")
 					.replace("*", "$*$")
 					.replaceAll("[$]{2,}", "\\$");
-			System.out.println("string after Spliting and cleaning" + str);
 			return str.split("\\$");
 			
 		} else {
@@ -359,53 +364,12 @@ public class Spreadsheet implements Grid
 		}
 	}
 
-	public double doubleSimpleCalculation(String Ex1, String Ex2, char Opperand) {
-		SpreadsheetLocation loc;
-		if (isCell(Ex1) || containsCell(Ex1)) {
-			loc = new SpreadsheetLocation(Ex1);
-			System.out.print("\nbefore : " + Ex1);
-			Ex1 = Double.toString(RecursiveProcesscell(loc));
-			System.out.println("after : " + Ex1 + "\n");
-		}
-		if (isCell(Ex2) || containsCell(Ex2)) {
-			System.out.print("\nbefore : " + Ex2);
-			loc = new SpreadsheetLocation(Ex2);
-			Ex2 = Double.toString(RecursiveProcesscell(loc));
-			System.out.println("after : " + Ex2 + "\n");
-		}
-		switch (Opperand) {
-		case '/':
-			if (Ex2.equals("0") || Ex2.equals("0.0")) {
-				return Ex1.contains("-") ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-			}
-			return Double.parseDouble(Ex1) / Double.parseDouble(Ex2);
-		case '*':
-			return Double.parseDouble(Ex1) * Double.parseDouble(Ex2); 
-		case '+':
-			return Double.parseDouble(Ex1) + Double.parseDouble(Ex2); 
-			default:
-				return 0.0;
-		}
+	public String LocationToString(SpreadsheetLocation loc) {
+		int row = loc.getRow();
+		int col = loc.getCol();
+		char colChar = (char) ( col +'A');
+		return (colChar +"" + col);
 	}
-	public ArrayList<SpreadsheetLocation> FormulaLocations = null;
-	public double RecursiveProcesscell(Location CellLoc) {
-		if (FormulaLocations != null) {
-			for (SpreadsheetLocation x: FormulaLocations) {
-				if (CellLoc.equals(x)) {
-					return Double.POSITIVE_INFINITY;
-				}
-			}
-		} else if (CellLoc.equals(currentFormulaLocation)) {
-			return Double.POSITIVE_INFINITY;
-		} else {
-			if (getCell(CellLoc) instanceof FormulaCell) {
-				return calcSingle(getCell(CellLoc).fullCellText().replaceAll("[()]", "").replace(" ", ""));
-			} else if (getCell(CellLoc) instanceof RealCell rcell) {
-				return Double.parseDouble(rcell.fullCellText());
-			}
-		}
-		System.out.println("you messed up bub");
-		return 024.96;
-		
-	}
+	
+	
 }

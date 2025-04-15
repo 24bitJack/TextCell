@@ -6,16 +6,16 @@ public class ValueCell extends RealCell{
 	}
 	@Override
 	public String abbreviatedCellText() {//Kaden taught me how to use ?:
-		 String str = Double.toString(Double.parseDouble(OgT));
+		 String str = Double.toString(Double.parseDouble(super.abbreviatedCellText()));
 		 return str.length() > 10 
 	            ?str.substring(0, 10) 
 	            : str + " ".repeat(10 - str.length());
 	}
 	
 	public String fullCellText() {
-		 return this.OgT;
+		 return super.abbreviatedCellText();
 	}
 	public double getDoubleVal() {
-		return Double.parseDouble(OgT);
+		return Double.parseDouble(super.abbreviatedCellText());
 	}
 }
