@@ -7,12 +7,10 @@ import java.util.Arrays;
 
 public class Spreadsheet implements Grid
 {
-	public ArrayList<SpreadsheetLocation> FormulaLocations;
 	public SpreadsheetLocation currentFormulaLocation;
 	public final EmptyCell empty = new EmptyCell();
 	private Cell[][] sheet;
 	public Spreadsheet() {
-		FormulaLocations =  new ArrayList<SpreadsheetLocation>();
 		currentFormulaLocation = null;
 		this.sheet = new Cell[getCols()][getRows()];
 		clearSheet();
@@ -32,7 +30,7 @@ public class Spreadsheet implements Grid
 			}
 		} if (isCell(command.trim().split(" ")[0])) {
 	    	if (isCell(command)) {
-	    		return ProcessCell("" ,command);	
+	    		return  ObtainCell(command);
 	    	} else {
 	    		ProcessCell(command ,"");	
 	    		return getGridText();
@@ -42,67 +40,61 @@ public class Spreadsheet implements Grid
 	    return "";
 	}
 	
-	public boolean checkForRecursionInLoc(SpreadsheetLocation loc) {
-	    if (FormulaLocations == null) {
-	        FormulaLocations = new ArrayList<>();
-	    }
-	    
-	    if (FormulaLocations.contains(loc)) {
-	        return true; // Already visited
-	    }
-
-	    FormulaLocations.add(loc);
-	    return false;
+	public String ObtainCell(String str) {
+		SpreadsheetLocation CellLoc = new SpreadsheetLocation(str.trim());
+		return getCell(CellLoc).fullCellText();
 	}
 	
-	public void addLoctoFormulaLocation(SpreadsheetLocation loc) {
-		System.out.println(this.LocationToString(loc));
-		 if (FormulaLocations == null) {
-			 System.out.println("FormulaLocation is Null");
-			 FormulaLocations = new ArrayList<SpreadsheetLocation>();
-			 currentFormulaLocation = loc;
-			 System.out.println("formulalocation is no longer Null");
-			 System.out.println("contains Formulallocation: " + currentFormulaLocation.toString());
-			 FormulaLocations.add(currentFormulaLocation);
-		 } else {
-			 System.out.println("FormulaLocations In rotation: " + FormulaLocations.toString());
-			 FormulaLocations.add(loc);
-		 }
-	}
-	
-	
-	public boolean checkForRecursionInLoc(String str) {
-		if (str == null) {
-			return false;
-		}
-		if (str.isEmpty() || str.isBlank()) {
-			return false;
-		}
-		
-		str = str.toUpperCase();
-		SpreadsheetLocation currentTokenLocation;
-		if (containsCell(str)) {
-			if (isCell(str.trim())) {
-				currentTokenLocation = new SpreadsheetLocation(str.trim());
-				addLoctoFormulaLocation(currentTokenLocation);
-				if (checkForRecursionInLoc(currentTokenLocation)) {
-					return true;
-				} else {
+	public SpreadsheetLocation[] IsolateCell(String str) {
+			ArrayList<SpreadsheetLocation> CellArray = new ArrayList<>();
+			ArrayList<SpreadsheetLocation> Location = new ArrayList<SpreadsheetLocation>();
+			SpreadsheetLocation CurrentLocation;
+			if (str.toUpperCase().contains("SORTA")||str.toUpperCase().contains("SUM")||str.toUpperCase().contains("AVG")) {
+				str = str.toUpperCase().replace("SORTA", "").replace("SUM", "").replace("AVG", "");
+				String[] begToEnd = str.split("-");
+				String beg = begToEnd[0].trim();
+				String end = begToEnd[1].trim();
+				SpreadsheetLocation locationBeg = new SpreadsheetLocation(beg);
+				SpreadsheetLocation locationEnd = new SpreadsheetLocation(end);
+				if (beg.equals(end)) {
+					CellArray.add(locationBeg);
+					return (SpreadsheetLocation[]) CellArray.toArray();
 				}
-			}
-			String[] Components = SplitStringPlusClean(str.trim().replace("(","").replace(")",""));
-			for (String CurrentToken: Components) {
-				CurrentToken = CurrentToken.replace(" ", "").replace("-","");
-				if (isCell(CurrentToken)) {
-					currentTokenLocation = new SpreadsheetLocation(CurrentToken);
-					if (checkForRecursionInLoc(currentTokenLocation)) {
-						return true;
+				int RowDif = locationEnd.getRow() - locationBeg.getRow();
+				int ColDif = locationEnd.getCol() - locationBeg.getCol();
+				for (int i = locationBeg.getCol(); i <= locationBeg.getCol() + ColDif; i++) {
+					char column = (char) ( Math.floor(i) + 'A');
+					for (int j = locationBeg.getRow()+1; j <= locationBeg.getRow()+1 + RowDif; j++) {
+						CurrentLocation = new SpreadsheetLocation(column + "" + j);
+						System.out.println("method: IsolateCell -> CurrentLocation: " + column + "" + j);
+						if (getCell(CurrentLocation) instanceof RealCell || getCell(CurrentLocation) instanceof FormulaCell ||getCell(CurrentLocation) instanceof TextCell) {
+							CellArray.add(CurrentLocation);
+						}
 					}
-					addLoctoFormulaLocation(currentTokenLocation);
 				}
+				SpreadsheetLocation[] returnArray =  new SpreadsheetLocation[CellArray.size()];
+				System.out.print("IsolateCells -> CellArray");
+				for (int i = 0; i < CellArray.size(); i++)  {
+					System.out.print((char)(CellArray.get(i).getCol() +'A') +"" +CellArray.get(i).getRow()  + ", ");
+					returnArray[i] = CellArray.get(i);
+				}
+				System.out.println();
+				System.out.println("IsolateCells-> returnArray: " );
+				return returnArray;
+			} else {
+				String[] Components = str.split("[-+/*]");
+				for (String CurrentToken :Components) {
+					if (isCell(CurrentToken.trim())) {
+						CurrentLocation = new SpreadsheetLocation(CurrentToken);
+						if (getCell(CurrentLocation) instanceof FormulaCell||getCell(CurrentLocation) instanceof RealCell||getCell(CurrentLocation) instanceof TextCell) {
+							CellArray.add(CurrentLocation);
+						}
+					}
+					
+				}
+				return (SpreadsheetLocation[]) CellArray.toArray();
 			}
-		}
-		return false;
+
 	}
 	
 	public String ProcessCell(String command, String CellLocStr) {
@@ -112,17 +104,14 @@ public class Spreadsheet implements Grid
 			 Double retDouble;
 			
 			 if (getCell(loc) instanceof FormulaCell formulaCell) {
+				 currentFormulaLocation = (SpreadsheetLocation) loc;
 				 retDouble = (formulaCell.getDoubleVal());
 				 if (Double.isNaN(retDouble)) {
 					 return "#ERROR";
 				 } else if (Double.isInfinite(retDouble)) {
 					 return "#ERROR";
 				 } else {
-					 if (!checkForRecursionInLoc((SpreadsheetLocation)loc)) {
 					 return Double.toString(retDouble);
-					 } else {
-						 return "0.0";
-					 }
 				 }
 			 } else if (getCell(loc) instanceof RealCell realcell) {
 				 retDouble = (realcell.getDoubleVal());

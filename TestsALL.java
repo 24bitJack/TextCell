@@ -1174,9 +1174,9 @@ public class TestsALL
         public void testVertical()
         {
             grid.processCommand("C3 = 1");
-            grid.processCommand("C4 = ( C3 * 2 )"); // 2
-            grid.processCommand("C5 = ( C4 - C3 )"); // 1
-            grid.processCommand("C6 = ( 32 - C4 )"); // 30
+            grid.processCommand("C4 = ( C3 * 2 )"); // 2 //3
+            grid.processCommand("C5 = ( C4 - C3 )"); // 1 //4
+            grid.processCommand("C6 = ( 32 - C4 )"); // 30 //24
             grid.processCommand("K20 = ( SUM c3-c6 )"); // 34
             grid.processCommand("L20 = ( avg C3-C6 )"); // 8.5
             Cell cellSum = grid.getCell(new TestLocation(19, 10));
