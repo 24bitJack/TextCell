@@ -14,13 +14,10 @@ public class SpreadsheetLocation implements Location
 			y = 0;
 			 while (Character.isAlphabetic(A.charAt(size)) && size < A.length()-1) {
 		            x = x * 26 + (Character.toUpperCase(A.charAt(size)) - 'A'); 
-		            System.out.println(x);
 		            size++;
 		        }
 		       y = Integer.parseInt(A.substring(size));
 		       y -= 1;
-		System.out.println(y);
-		System.out.println(x);
 		}
 
     @Override

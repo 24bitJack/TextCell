@@ -1,7 +1,7 @@
 package textExcel;
 
 public class RealCell implements Cell {
-	protected String OgT;
+	private String OgT;
 
 	public RealCell(String Ogt) {
 		this.OgT = Ogt;
